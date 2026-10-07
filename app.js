@@ -481,6 +481,7 @@ function shareBox(a, cls, test){
   const url = baseUrl()+'#/t/'+a.code;
   const clsUrl = cls? baseUrl()+'#/k/'+cls.id : '';
   const box=h(`<div>
+    ${ONLINE?'':'<div class="note" style="margin-bottom:12px"><strong>Einzelplatz-Modus:</strong> Dieser Link funktioniert nur in diesem Browser auf diesem Gerät. Für den Einsatz in der Klasse muss zuerst der Cloud-Speicher eingerichtet werden (Einstellungen → Cloud-Speicher).</div>'}
     <div style="font-size:13px;color:var(--muted)">Test-Code für die Klasse</div>
     <div class="mono">${esc(a.code)}</div>
     <div style="font-size:13px;color:var(--muted);margin-top:12px">Direktlink zum Test</div>
@@ -673,7 +674,10 @@ function viewSettings(root){
 async function classEntry(classId){
   app.innerHTML='<div class="card"><p class="empty">wird geladen …</p></div>';
   const cls=await Store.getClass(classId);
-  if(!cls){ app.innerHTML='<div class="card"><h2>Klasse nicht gefunden</h2><p class="sub">Bitte den Link bei deiner Lehrkraft prüfen.</p></div>'; return; }
+  if(!cls){ app.innerHTML='<div class="card"><h2>Klasse nicht gefunden</h2><p class="sub">Bitte den Link bei deiner Lehrkraft prüfen.</p>'
+      + (ONLINE?'':'<div class="note">Hinweis für die Lehrkraft: Im <strong>Einzelplatz-Modus</strong> liegen Klassen nur in dem Browser, in dem sie angelegt wurden. '
+        + 'Für den Klasseneinsatz muss der Cloud-Speicher eingerichtet sein (siehe ANLEITUNG, Abschnitt 2).</div>')
+      + '</div>'; return; }
   const [assigns, tests]=await Promise.all([Store.listAssignments(), Store.listTests()]);
   const open=assigns.filter(a=>a.class_id===classId && a.active);
   app.innerHTML='';
@@ -701,7 +705,11 @@ async function classEntry(classId){
 async function codeEntry(code){
   app.innerHTML='<div class="card"><p class="empty">wird geladen …</p></div>';
   const a=await Store.getAssignmentByCode(code);
-  if(!a){ app.innerHTML='<div class="card"><h2>Code nicht gefunden</h2><p class="sub">Bitte prüfe den Code oder frage deine Lehrkraft.</p></div>'; return; }
+  if(!a){ app.innerHTML='<div class="card"><h2>Code nicht gefunden</h2><p class="sub">Bitte prüfe den Code oder frage deine Lehrkraft.</p>'
+      + (ONLINE?'':'<div class="note">Hinweis für die Lehrkraft: Die App läuft im <strong>Einzelplatz-Modus</strong>. '
+        + 'Tests und Klassen liegen nur in dem Browser, in dem sie angelegt wurden – auf einem anderen Gerät oder in einem privaten Fenster ist der Code deshalb unbekannt. '
+        + 'Damit Schüler:innen teilnehmen können, muss der Cloud-Speicher eingerichtet sein (siehe ANLEITUNG, Abschnitt 2).</div>')
+      + '</div>'; return; }
   if(!a.active){ app.innerHTML='<div class="card"><h2>Dieser Test ist geschlossen</h2><p class="sub">Die Lehrkraft hat den Test beendet.</p></div>'; return; }
   const [t,cls]=await Promise.all([Store.getTest(a.test_id), Store.getClass(a.class_id)]);
   if(!t||!cls){ app.innerHTML='<div class="card"><h2>Test nicht verfügbar</h2></div>'; return; }
