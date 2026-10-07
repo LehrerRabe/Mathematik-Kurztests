@@ -2,9 +2,11 @@ import {TOPICS, GRADES, TYPE_LABEL, topicsForGrade, topicByKey, generate, replac
 import {Store, ONLINE} from './store.js';
 import {DEFAULT_SCALE, gradeFor, avgGrade, scaleToText} from './grading.js';
 import {scoreTest} from './evaluate.js';
-import {esc, todayISO, deDate, fmt, uid, pinHash} from './util.js';
+import {esc, todayISO, deDate, fmt, uid, pinHash, code} from './util.js';
 import {aiItems, aiConfigured} from './ai.js';
 import {TEACHER_PIN_HASH} from './config.js';
+import {encodeTest, decodeTest, canUseSeed} from './share.js';
+import qrcode from './qrcode-lib.mjs';
 
 const app = document.getElementById('app');
 const head = document.getElementById('head');
@@ -71,6 +73,7 @@ async function route(){
   if(p[0]==='lehrer') return teacher(p[1]||'neu');
   if(p[0]==='k')      return classEntry(p[1]);
   if(p[0]==='t')      return codeEntry(p[1]);
+  if(p[0]==='s')      return selfTest((location.hash||'').split('#/s/')[1]||'');
   return home();
 }
 window.addEventListener('hashchange', route);
@@ -119,7 +122,13 @@ async function teacher(tab){
     <button data-t="auswertung">Auswertung</button>
     <button data-t="einstellungen">Einstellungen</button></div>`);
   qsa('button',nav).forEach(b=>{ if(b.dataset.t===tab) b.setAttribute('aria-current','true');
-    b.onclick=()=>go('#/lehrer/'+b.dataset.t); });
+    b.onclick=()=>{
+      const ziel='#/lehrer/'+b.dataset.t;
+      if(S.draft && S.draft.items && S.draft.items.length
+         && !confirm('Der noch nicht gespeicherte Test geht dabei verloren. Trotzdem wechseln?')) return;
+      S.draft=null; S.editing=null;
+      if(location.hash===ziel) route(); else go(ziel);
+    }; });
   app.appendChild(nav);
   const body = h('<div id="tbody"></div>'); app.appendChild(body);
   if(tab==='neu') return viewNew(body);
@@ -196,7 +205,8 @@ function viewNew(root){
     const {tot, auto, nai, rest}=syncRest();
     if(!types.length) return toast('Bitte mindestens einen Aufgabentyp wählen.');
     S.grade=grade; S.count=tot; S.types=types;
-    let items = auto>0 ? generate({grade, topicKeys, count:auto, types}) : [];
+    const seed = code(8);
+    let items = auto>0 ? generate({grade, topicKeys, count:auto, types, seed}) : [];
     if(nai>0){
       qs('#gen').disabled=true; qs('#gen').textContent='KI-Aufgaben werden erzeugt …';
       const extra = await aiItems({grade, topics:(topicKeys.length?topicKeys:topicsForGrade(grade).map(t=>t.key)).map(k=>topicByKey(k).name), count:nai, types});
@@ -206,7 +216,8 @@ function viewNew(root){
     }
     for(let i=0;i<rest;i++) items.push(blankItem(types[0]||'mc', grade));
     if(!items.length) return toast('Für diese Auswahl konnten keine Aufgaben erzeugt werden.');
-    S.draft={name:'', grade, topics:topicKeys, items, scale:scale()};
+    S.draft={name:'', grade, topics:topicKeys, types, seed, items, scale:scale(),
+             pure:(auto===tot && nai===0 && rest===0)};
     preview(root);
   };
 }
@@ -340,9 +351,12 @@ function preview(root){
     <input id="tname" placeholder="z. B. 7a – Prozentrechnung – Kurztest 1" value="${esc(d.name||'')}">
     <div class="note" style="margin-top:14px">Notenschlüssel: ${esc(scaleToText(d.scale))}</div>
     <div class="row end" style="margin-top:18px">
+      <button id="back">Zurück zur Auswahl</button>
       <button id="again">Neu würfeln</button>
+      <button id="link">Link für die Klasse</button>
       <button class="primary" id="save">Test speichern</button>
     </div>
+    <div id="linkbox" style="margin-top:16px"></div>
   </div>`);
   root.appendChild(card);
   const draw=()=>{
@@ -369,8 +383,8 @@ function preview(root){
           <input type="number" min="1" max="5" value="${it.points||1}" data-a="pts" style="width:74px">
         </div></div>`);
       qs('[data-a="edit"]',el).onclick=()=>{ S.editing=it.id; draw(); };
-      qs('[data-a="del"]',el).onclick=()=>{ d.items.splice(i,1); draw(); };
-      qs('[data-a="rep"]',el).onclick=()=>{ if(it.manual) return;
+      qs('[data-a="del"]',el).onclick=()=>{ d.pure=false; d.items.splice(i,1); draw(); };
+      qs('[data-a="rep"]',el).onclick=()=>{ if(it.manual) return; d.pure=false;
         const n=replaceItem(it,d.items,S.types); if(n){n.points=it.points||1; d.items[i]=n; draw();} else toast('Keine andere Aufgabe verfügbar.'); };
       qs('[data-a="pts"]',el).onchange=e=>{ it.points=Math.max(1,Math.min(5,Number(e.target.value)||1)); };
       L.appendChild(el);
@@ -380,16 +394,30 @@ function preview(root){
       + (offenN? ' · '+offenN+' noch auszufüllen' : '');
   };
   draw();
-  qs('#add',card).onclick=()=>{ const n=generate({grade:d.grade, topicKeys:d.topics, count:1, types:S.types});
+  const impure=()=>{ d.pure=false; };
+  qs('#add',card).onclick=()=>{ impure(); const n=generate({grade:d.grade, topicKeys:d.topics, count:1, types:S.types});
     if(n.length && !d.items.some(x=>x.q===n[0].q)){ d.items.push(n[0]); draw(); } else toast('Keine neue Aufgabe gefunden.'); };
   qs('#addOwn',card).onclick=()=>{ const it=blankItem((S.types&&S.types[0])||'mc', d.grade); d.items.push(it); S.editing=it.id; draw(); };
   qs('#again',card).onclick=()=>{
     const manuell=d.items.filter(x=>x.manual||x.edited);
+    d.pure=false;
     const n=d.items.length-manuell.length;
     if(n<=0) return toast('Es gibt keine unveränderten Aufgaben zum Neuwürfeln.');
     d.items=generate({grade:d.grade, topicKeys:d.topics, count:n, types:S.types}).concat(manuell);
     toast(manuell.length? 'Neu gewürfelt – deine eigenen und bearbeiteten Aufgaben bleiben erhalten.':'Neu gewürfelt.');
     draw(); };
+  qs('#back',card).onclick=()=>{
+    if(d.items.length && !confirm('Dieser Entwurf geht dabei verloren. Zurück zur Auswahl?')) return;
+    S.draft=null; S.editing=null; viewNew(root);
+  };
+  qs('#link',card).onclick=()=>{
+    const lb=qs('#linkbox',card);
+    if(lb.innerHTML){ lb.innerHTML=''; return; }
+    const offen=d.items.filter(x=>x.draft||!itemComplete(x));
+    if(offen.length) return toast(offen.length+' Aufgabe(n) sind noch nicht ausgefüllt.');
+    if(!d.items.length) return toast('Der Test enthält keine Aufgaben.');
+    lb.innerHTML=''; lb.appendChild(selfLinkBox(Object.assign({}, d, {name:qs('#tname',card).value.trim()||'Kurztest'})));
+  };
   qs('#save',card).onclick=async ()=>{
     const name=qs('#tname',card).value.trim();
     if(!name) return toast('Bitte einen Namen für den Test eingeben.');
@@ -397,7 +425,8 @@ function preview(root){
     const offen=d.items.filter(x=>x.draft||!itemComplete(x));
     if(offen.length) return toast(offen.length+' Aufgabe(n) sind noch nicht ausgefüllt.');
     await busy(async()=>{
-      await Store.saveTest({name, grade:d.grade, topics:d.topics, items:d.items, scale:d.scale});
+      await Store.saveTest({name, grade:d.grade, topics:d.topics, types:d.types, seed:d.seed,
+        pure:d.pure && !d.items.some(i=>i.manual||i.edited||i.ai), items:d.items, scale:d.scale});
       S.draft=null; toast('Test gespeichert.'); go('#/lehrer/bibliothek');
     });
   };
@@ -424,7 +453,8 @@ async function viewLibrary(root){
       <div style="font-size:14px;color:var(--muted)">Klasse ${t.grade} · ${t.items.length} Aufgaben · ${t.items.reduce((a,x)=>a+(x.points||1),0)} Punkte · angelegt ${deDate(t.created_at)}</div>
       <div class="row" style="margin-top:10px">
         <button class="sm" data-a="show">Aufgaben ansehen</button>
-        <button class="sm primary" data-a="share">Für Klasse freigeben</button>
+        <button class="sm primary" data-a="self">Link für die Klasse</button>
+        <button class="sm" data-a="share">Mit Ergebnis-Sammlung freigeben</button>
         <button class="sm danger" data-a="del">Löschen</button></div>
       <div data-a="box" class="hide" style="margin-top:12px"></div></div>`);
     const box=qs('[data-a="box"]',el);
@@ -433,6 +463,10 @@ async function viewLibrary(root){
       box.innerHTML = t.items.map((it,i)=>`<div style="padding:8px 0;border-top:1px solid var(--line)">
         <div style="font-weight:600">${i+1}. ${esc(it.q)}</div>
         <div style="font-size:13px;color:var(--muted)">${esc(TYPE_LABEL[it.type])} · Lösung: ${esc(solText(it))}</div></div>`).join('');
+    };
+    qs('[data-a="self"]',el).onclick=()=>{
+      if(box.innerHTML && box.dataset.kind==='self'){ box.innerHTML=''; box.classList.add('hide'); return; }
+      box.classList.remove('hide'); box.dataset.kind='self'; box.innerHTML=''; box.appendChild(selfLinkBox(t));
     };
     qs('[data-a="del"]',el).onclick=async()=>{ if(!confirm('Test „'+t.name+'“ endgültig löschen? Zugehörige Ergebnisse werden mitgelöscht.'))return;
       await busy(async()=>{ await Store.deleteTest(t.id); toast('Test gelöscht.'); viewLibrary(root); }); };
@@ -504,14 +538,89 @@ function shareBox(a, cls, test){
   };
   return box;
 }
+/* Link fuer die Klasse - ohne Server, ohne Speichern. */
+function selfLinkBox(test){
+  let code;
+  try{ code = encodeTest(test); }
+  catch(e){ return h('<div class="note">Der Link konnte nicht erzeugt werden: '+esc(e.message)+'</div>'); }
+  const url = baseUrl()+'#/s/'+code;
+  const kurz = canUseSeed(test);
+  const mods = qrModules(url);
+  /* Gemessen: unter etwa 6 Bildpunkten je Modul lesen Kameras den Code nicht mehr
+     zuverlässig. Bei 560 px Anzeigegröße sind das rund 93 Module. */
+  const qrOk  = mods > 0 && mods <= 93;
+  const qrEng = mods > 93 && mods <= 121;
+  const box=h(`<div>
+    <div class="note" style="margin-bottom:12px">
+      Dieser Link enthält den gesamten Test. Die Schüler:innen brauchen kein Konto und keinen Code –
+      sie öffnen ihn, bearbeiten den Test und sehen sofort ihre Note und die Lösungswege.
+      <strong>Es wird nichts gespeichert und nichts an dich zurückgemeldet.</strong>
+    </div>
+    <div style="font-size:13px;color:var(--muted)">Link für die Klasse (${url.length} Zeichen${kurz?', Kurzfassung':''})</div>
+    <div class="linkbox">${esc(url)}</div>
+    <div class="row" style="margin-top:12px">
+      <button class="sm" data-a="copy">Link kopieren</button>
+      ${(qrOk||qrEng)?'<button class="sm" data-a="qr">QR-Code zum Beamen</button>':''}
+      <button class="sm" data-a="open">Selbst ausprobieren</button>
+    </div>
+    ${qrOk?'':qrEng
+      ? '<div class="note" style="margin-top:12px">Der QR-Code ist für diesen Link recht fein (' + mods + ' × ' + mods + ' Module). Auf einem großen Bildschirm oder über den Beamer („Groß anzeigen“) klappt das Scannen; auf einem kleinen Display eher nicht. Im Zweifel den Link verteilen.</div>'
+      : '<div class="note" style="margin-top:12px">Für einen QR-Code ist dieser Test zu umfangreich – bitte den Link verteilen. Deutlich kürzer wird er, wenn du die Aufgaben unverändert aus der Aufgabenbank übernimmst; dann steht im Link nur die Bauanleitung statt des ganzen Tests.</div>'}
+    <div data-a="qrbox" style="margin-top:14px"></div></div>`);
+  qs('[data-a="copy"]',box).onclick=()=>navigator.clipboard.writeText(url)
+    .then(()=>toast('Link kopiert.'),()=>toast('Kopieren hat nicht geklappt – Link bitte markieren.'));
+  qs('[data-a="open"]',box).onclick=()=>window.open(url,'_blank');
+  const qb=qs('[data-a="qr"]',box);
+  if(qb) qb.onclick=()=>{ const t=qs('[data-a="qrbox"]',box);
+    if(t.innerHTML){ t.innerHTML=''; return; }
+    t.innerHTML='<div class="qr" id="qrs"></div>'; makeQR(qs('#qrs',t), url); };
+  return box;
+}
+
+function qrModules(text){
+  try{ const q=qrcode(0,'M'); q.addData(text); q.make(); return q.getModuleCount(); }
+  catch(e){ return 0; }
+}
 function makeQR(el, text){
-  const run=()=>{ try{ new window.QRCode(el,{text, width:260, height:260, correctLevel: window.QRCode.CorrectLevel.M}); }
-                  catch(e){ el.innerHTML='<div class="note">QR-Code konnte nicht erzeugt werden – bitte den Link verwenden.</div>'; } };
-  if(window.QRCode) return run();
-  const s=document.createElement('script');
-  s.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
-  s.onload=run; s.onerror=()=>{ el.innerHTML='<div class="note">QR-Code benötigt Internet – bitte den Link oder Code verwenden.</div>'; };
-  document.head.appendChild(s);
+  /* QR-Erzeugung läuft vollständig in der App - kein Internet, kein externer Dienst.
+     Die Darstellungsgröße richtet sich nach der Anzahl der Module: unter etwa
+     6 Pixeln pro Modul bekommen Kameras den Code nicht mehr zuverlässig gelesen. */
+  try{
+    const q = qrcode(0, 'M');
+    q.addData(text);
+    q.make();
+    const mods = q.getModuleCount();
+    const px = Math.min(560, Math.max(260, mods * 7));
+    el.innerHTML = q.createSvgTag({cellSize:6, margin:4, scalable:true});
+    const svg = el.querySelector('svg');
+    if(svg){
+      svg.setAttribute('width', px); svg.setAttribute('height', px);
+      svg.style.display='block'; svg.style.maxWidth='100%';
+      svg.setAttribute('role','img'); svg.setAttribute('aria-label','QR-Code zum Test');
+    }
+    const bar = h('<div class="row" style="margin-top:10px">'
+      + '<button class="sm" data-a="full">Groß anzeigen (zum Beamen)</button>'
+      + '<span style="font-size:13px;color:var(--muted);align-self:center">'+mods+' × '+mods+' Module</span></div>');
+    qs('[data-a="full"]',bar).onclick=()=>showQrFull(svg.outerHTML);
+    el.appendChild(bar);
+  }catch(e){
+    el.innerHTML = '<div class="note">Für diesen Link ist ein QR-Code zu umfangreich – bitte den Link weitergeben.</div>';
+  }
+}
+/* Bildschirmfüllende Darstellung für den Beamer */
+function showQrFull(svgHtml){
+  const ov=h('<div style="position:fixed;inset:0;background:#fff;z-index:200;display:flex;flex-direction:column;'
+    + 'align-items:center;justify-content:center;gap:18px;padding:24px">'
+    + '<div id="qrFullBox" style="width:min(80vh,80vw)"></div>'
+    + '<button class="sm" id="qrFullClose">Schließen</button></div>');
+  document.body.appendChild(ov);
+  const box=qs('#qrFullBox',ov); box.innerHTML=svgHtml;
+  const svg=box.querySelector('svg');
+  if(svg){ svg.removeAttribute('width'); svg.removeAttribute('height'); svg.style.width='100%'; svg.style.height='auto'; }
+  const close=()=>{ ov.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey=e=>{ if(e.key==='Escape') close(); };
+  qs('#qrFullClose',ov).onclick=close;
+  document.addEventListener('keydown', onKey);
 }
 
 /* ---------- Klassen ---------- */
@@ -723,6 +832,27 @@ async function codeEntry(code){
   qs('#st',card).onclick=()=>{ const n=qs('#nm',card).value; if(!n) return toast('Bitte wähle zuerst deinen Namen.'); runTest(a,t,cls,n); };
 }
 
+/* ---------- Selbstkontrolle: Test steckt komplett im Link ---------- */
+function selfTest(codeStr){
+  let test;
+  try{ test = decodeTest(decodeURIComponent(codeStr)); }
+  catch(e){ test=null; }
+  if(!test || !test.items || !test.items.length){
+    app.innerHTML='<div class="card"><h2>Dieser Link funktioniert nicht</h2>'
+      + '<p class="sub">Vermutlich ist er beim Kopieren abgeschnitten worden. Bitte bei deiner Lehrkraft den vollständigen Link erfragen.</p></div>';
+    return;
+  }
+  test.items.forEach((it,i)=>{ if(!it.id) it.id='q'+i; });
+  app.innerHTML='';
+  app.appendChild(h(`<div class="card">
+    <h2>${esc(test.name||'Kurztest')}</h2>
+    <p class="sub">${test.items.length} Aufgaben · ${test.items.reduce((a,x)=>a+(x.points||1),0)} Punkte${test.grade?' · Klasse '+test.grade:''}</p>
+    <div class="note">Am Ende siehst du deine Punkte, deine Note und zu jeder Aufgabe den Lösungsweg.
+      Dein Ergebnis wird nirgends gespeichert und nicht weitergeschickt – es ist nur für dich.</div>
+    <div class="row end" style="margin-top:18px"><button class="primary" id="go">Test starten</button></div></div>`));
+  qs('#go').onclick=()=>runTest(null, test, null, null);
+}
+
 /* ---------- Testdurchführung ---------- */
 function runTest(assign, test, cls, student){
   const answers={}; let idx=0;
@@ -733,7 +863,7 @@ function runTest(assign, test, cls, student){
     app.innerHTML='';
     const card=h(`<div class="card">
       <div class="meta" style="display:flex;justify-content:space-between;font-size:13px;color:var(--muted)">
-        <span>${esc(student)} · ${esc(cls.name)}</span><span>Aufgabe ${idx+1} von ${items.length}</span></div>
+        <span>${student? esc(student)+' · '+esc(cls.name) : esc(test.name||'Kurztest')}</span><span>Aufgabe ${idx+1} von ${items.length}</span></div>
       <div class="bar"><span style="width:${Math.round((idx)/items.length*100)}%"></span></div>
       <div class="qt" style="font-size:18px;margin:16px 0 14px;white-space:pre-wrap">${esc(it.q)}</div>
       <div id="ans"></div>
@@ -755,12 +885,14 @@ function runTest(assign, test, cls, student){
   const finish=async()=>{
     S.running=false;
     const r=scoreTest(items, answers, test.scale||scale());
-    app.innerHTML='<div class="card"><p class="empty">Test wird ausgewertet …</p></div>';
-    await busy(async()=>{
-      await Store.saveResult({assignment_id:assign.id, class_id:cls.id, test_id:test.id, test_name:test.name,
-        student, date:assign.date||todayISO(), points:r.points, max_points:r.max, percent:r.percent,
-        grade_text:r.grade, grade_nk:r.grade_nk, answers:r.detail.map(d=>({id:d.id, given:d.given, earned:d.earned}))});
-    });
+    if(assign && cls && student){
+      app.innerHTML='<div class="card"><p class="empty">Test wird ausgewertet …</p></div>';
+      await busy(async()=>{
+        await Store.saveResult({assignment_id:assign.id, class_id:cls.id, test_id:test.id, test_name:test.name,
+          student, date:assign.date||todayISO(), points:r.points, max_points:r.max, percent:r.percent,
+          grade_text:r.grade, grade_nk:r.grade_nk, answers:r.detail.map(d=>({id:d.id, given:d.given, earned:d.earned}))});
+      });
+    }
     showResult(r, test, student);
   };
   draw();
@@ -840,14 +972,16 @@ function showResult(r, test, student){
   const good=r.percent>=50;
   app.appendChild(h(`<div class="card">
     <h2>Dein Ergebnis</h2>
-    <p class="sub">${esc(student)} · ${esc(test.name)}</p>
+    <p class="sub">${student? esc(student)+' · ':''}${esc(test.name||'Kurztest')}</p>
     <div class="big">Note ${esc(r.grade)}</div>
     <div class="bar"><span style="width:${Math.round(r.percent)}%"></span></div>
     <div style="font-size:15px">${fmt(r.points)} von ${fmt(r.max)} Punkten · ${fmt(r.percent)} %</div>
-    <div class="note" style="margin-top:14px">${good?'Dein Ergebnis wurde gespeichert. Unten siehst du die Lösungen.':'Dein Ergebnis wurde gespeichert. Schau dir unten in Ruhe die Lösungswege an.'}</div>
+    <div class="note" style="margin-top:14px">${student
+        ? (good?'Dein Ergebnis wurde gespeichert. Unten siehst du die Lösungen.':'Dein Ergebnis wurde gespeichert. Schau dir unten in Ruhe die Lösungswege an.')
+        : 'Dein Ergebnis wird nicht gespeichert und nicht weitergeschickt. Schau dir unten in Ruhe die Lösungswege an – du kannst den Test jederzeit neu starten.'}</div>
   </div>
   <div class="card"><h2>Lösungen</h2><div id="sl"></div>
-  <div class="row end" style="margin-top:16px"><button id="done">Fertig</button></div></div>`));
+  <div class="row end" style="margin-top:16px"><button id="done">Noch einmal versuchen</button></div></div>`));
   const L=qs('#sl');
   r.detail.forEach((d,i)=>{
     const given = Array.isArray(d.given)? d.given.join(' → ') : (d.type==='tf'? (d.given===true?'wahr':d.given===false?'falsch':'–') :
@@ -859,7 +993,7 @@ function showResult(r, test, student){
       <div class="res ${d.correct?'ok':'bad'}">Deine Antwort: ${esc(given)}${d.correct?' – richtig':' – richtig wäre: '+esc(sol)}</div>
       ${d.solution?`<div style="font-size:14px;color:var(--muted)">${esc(d.solution)}</div>`:''}</div>`));
   });
-  qs('#done').onclick=()=>go('#/');
+  qs('#done').onclick=()=>{ if(!student){ location.reload(); } else go('#/'); };
 }
 
 route();
