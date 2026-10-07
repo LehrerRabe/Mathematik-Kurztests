@@ -47,10 +47,23 @@ export function generate({grade, topicKeys, count, types, seed}){
   return out;
 }
 
+/* Ersatzaufgabe mit ANDEREM Aufgabentyp aus demselben Thema. */
+export function replaceItemType(item, existingItems, types){
+  const t = topicByKey(item.topic) || topicsForGrade(item.grade)[0];
+  if(!t) return null;
+  const erlaubt = (types && types.length ? types : Object.keys(TYPE_LABEL)).filter(x => x !== item.type);
+  if(!erlaubt.length) return null;
+  const seen = new Set(existingItems.filter(i=>i!==item).map(i=>i.q.replace(/\s+/g,' ').trim()));
+  const rng = makeRng(Date.now()+''+Math.random());
+  return tryGen(t, erlaubt, rng, seen, 300);
+}
+
 /* Ersatzaufgabe fuer eine bestehende Aufgabe (gleiches Thema, nicht identisch) */
 export function replaceItem(item, existingItems, types){
   const rng = makeRng(Date.now()+''+Math.random());
   const t = topicByKey(item.topic) || topicsForGrade(item.grade)[0];
-  const seen = new Set(existingItems.map(i=>i.q.replace(/\s+/g,' ').trim()));
-  return tryGen(t, types, rng, seen, 120);
+  if(!t) return null;
+  const seen = new Set(existingItems.filter(i=>i!==item).map(i=>i.q.replace(/\s+/g,' ').trim()));
+  /* Gleiche Aufgabenart beibehalten - es sollen sich nur die Zahlen aendern. */
+  return tryGen(t, [item.type], rng, seen, 300);
 }

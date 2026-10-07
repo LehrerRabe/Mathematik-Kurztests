@@ -1,21 +1,22 @@
-import {mc,tf,num,txt,ord,nearNums,R,fmt,gcd,fracStr} from './bank-core.js';
+import {mc,tf,num,txt,ord,nearNums,R,fmt,gcd,fracStr, nz, klammer, term, plusZahl, plusTerm} from './bank-core.js';
 
 export default [
 {key:'g7-rational', grade:7, name:'Rechnen mit rationalen Zahlen', gens:[
  r=>{const a=R.int(r,-25,25), b=R.int(r,-25,25);
-     return num('Berechne: ('+a+') + ('+b+')', a+b, 'Vorzeichen beachten: ('+a+') + ('+b+') = '+(a+b)+'.');},
+     return num('Berechne: '+klammer(a)+' + '+klammer(b), a+b, 'Vorzeichen beachten: '+klammer(a)+' + '+klammer(b)+' = '+nz(a+b)+'.');},
  r=>{const a=R.int(r,-25,25), b=R.int(r,-25,25);
-     return num('Berechne: ('+a+') − ('+b+')', a-b, 'Minus vor Klammer: ('+a+') − ('+b+') = '+a+' + '+(-b)+' = '+(a-b)+'.');},
+     return num('Berechne: '+klammer(a)+' − '+klammer(b), a-b, 'Vorzeichen beachten: '+klammer(a)+' − '+klammer(b)+' = '+nz(a)+plusZahl(-b)+' = '+nz(a-b)+'.');},
  r=>{const a=R.int(r,-12,12)||3, b=R.int(r,-12,12)||4;
-     return num('Berechne: ('+a+') · ('+b+')', a*b, 'Gleiche Vorzeichen → positiv, verschiedene → negativ. Ergebnis: '+(a*b)+'.');},
+     return num('Berechne: '+klammer(a)+' · '+klammer(b), a*b, 'Gleiche Vorzeichen → positiv, verschiedene → negativ. Ergebnis: '+nz(a*b)+'.');},
  r=>{const b=R.int(r,2,12)*(r()<0.5?-1:1), q=R.int(r,2,12)*(r()<0.5?-1:1); const a=b*q;
-     return num('Berechne: ('+a+') : ('+b+')', q, a+' : '+b+' = '+q+'.');},
+     return num('Berechne: '+klammer(a)+' : '+klammer(b), q, klammer(a)+' : '+klammer(b)+' = '+nz(q)+'.');},
  r=>{const a=R.int(r,-9,9)||2,b=R.int(r,-9,9)||3,c=R.int(r,-9,9)||4;
      const v=a-b*c;
-     return num('Berechne: '+a+' − ('+b+') · ('+c+')', v, 'Punkt vor Strich: ('+b+')·('+c+') = '+(b*c)+', dann '+a+' − ('+(b*c)+') = '+v+'.');},
+     return num('Berechne: '+nz(a)+' − '+klammer(b)+' · '+klammer(c), v,
+       'Punkt vor Strich: '+klammer(b)+'·'+klammer(c)+' = '+nz(b*c)+', dann '+nz(a)+' − '+klammer(b*c)+' = '+nz(v)+'.');},
  r=>{const a=R.int(r,-15,-1);
-     return tf('| '+a+' | = '+(-a), true, 'Der Betrag gibt den Abstand zur Null an und ist nie negativ.');},
- r=>{const L=R.sample(r,[-9.5,-7,-3.2,-1,0,0.5,2.75,6,11],4).sort((a,b)=>a-b).map(x=>fmt(x));
+     return tf('| '+nz(a)+' | = '+(-a), true, 'Der Betrag gibt den Abstand zur Null an und ist nie negativ.');},
+ r=>{const L=R.sample(r,[-9.5,-7,-3.2,-1,0,0.5,2.75,6,11],4).sort((a,b)=>a-b).map(x=>nz(fmt(x)));
      return ord('Ordne die rationalen Zahlen vom kleinsten zum größten Wert.',L,'Auf der Zahlengeraden: je weiter links, desto kleiner.',r);},
  r=>{const a=R.int(r,2,9); return mc('Welches Ergebnis ist richtig: (−'+a+') · (−'+a+') = ?', a*a, [-(a*a), a*a+a, -(a*a)-a], 'Minus mal Minus ergibt Plus: (−'+a+')·(−'+a+') = '+(a*a)+'.', r);}
 ]},
@@ -68,10 +69,11 @@ export default [
 
 {key:'g7-terme', grade:7, name:'Terme und Gleichungen', gens:[
  r=>{const a=R.int(r,2,9), b=R.int(r,1,15), x=R.int(r,2,15); const c=a*x+b;
-     return num('Löse die Gleichung: '+a+'x + '+b+' = '+c, x, 'Beidseitig − '+b+': '+a+'x = '+(c-b)+', dann : '+a+' → x = '+x+'.');},
+     return num('Löse die Gleichung: '+term(a,'x')+plusZahl(b)+' = '+c, x, 'Beidseitig − '+b+': '+term(a,'x')+' = '+(c-b)+', dann : '+a+' → x = '+x+'.');},
  r=>{const a=R.int(r,2,9), b=R.int(r,1,12), c=R.int(r,1,9), x=R.int(r,2,12);
      const rhs=(a+c)*x+b; // ax + b + cx = rhs
-     return num('Löse: '+a+'x + '+b+' + '+c+'x = '+rhs, x, 'Zusammenfassen: '+(a+c)+'x + '+b+' = '+rhs+' → '+(a+c)+'x = '+(rhs-b)+' → x = '+x+'.');},
+     return num('Löse: '+term(a,'x')+plusZahl(b)+plusTerm(c,'x')+' = '+rhs, x,
+       'Zusammenfassen: '+term(a+c,'x')+plusZahl(b)+' = '+rhs+' → '+term(a+c,'x')+' = '+(rhs-b)+' → x = '+x+'.');},
  r=>{const a=R.int(r,2,7), b=R.int(r,1,9), c=R.int(r,2,9);
      return txt('Multipliziere aus: '+a+'('+ 'x + '+b+') (Form: 3x+6)', (a)+'x+'+(a*b), 'Distributivgesetz: '+a+'·x + '+a+'·'+b+' = '+a+'x + '+(a*b)+'.',
        [a+'x + '+a*b]);},
@@ -79,7 +81,7 @@ export default [
      return txt('Klammere aus: '+a+'x + '+b+' (Form: 3(x+2) )', a+'(x+'+(b/a)+')', 'Gemeinsamer Faktor '+a+': '+a+'x + '+b+' = '+a+'(x + '+(b/a)+').',
        [a+'*(x+'+(b/a)+')']);},
  r=>{const a=R.int(r,2,8), b=R.int(r,1,9), x=R.int(r,2,10); const v=a*x-b;
-     return num('Berechne den Termwert von '+a+'x − '+b+' für x = '+x+'.', v, a+' · '+x+' − '+b+' = '+v+'.');},
+     return num('Berechne den Termwert von '+term(a,'x')+plusZahl(-b)+' für x = '+x+'.', v, a+' · '+x+' − '+b+' = '+nz(v)+'.');},
  r=>ord('Ordne die Schritte beim Lösen der Gleichung 3x + 5 = 20.',
      ['Beide Seiten − 5','3x = 15','Beide Seiten : 3','x = 5'],'Äquivalenzumformungen: erst die Addition, dann die Multiplikation rückgängig machen.',r),
  r=>tf('Beim Multiplizieren beider Seiten einer Gleichung mit 0 bleibt die Lösungsmenge gleich.', false,

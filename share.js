@@ -57,9 +57,10 @@ export function canUseSeed(test){
 export function encodeTest(test){
   if(canUseSeed(test)){
     return 'S'+toText({v:1, n:test.name, g:test.grade, t:test.topics||[], c:test.items.length,
-                        y:test.types||[], s:test.seed, p:test.items.map(i=>i.points||1), sc:test.scale});
+                        y:test.types||[], s:test.seed, p:test.items.map(i=>i.points||1), sc:test.scale,
+                        sh:test.shuffle?1:0});
   }
-  return 'F'+toText({v:1, n:test.name, g:test.grade, sc:test.scale,
+  return 'F'+toText({v:1, n:test.name, g:test.grade, sc:test.scale, sh:test.shuffle?1:0,
     i:test.items.map(i=>({t:i.type,q:i.q,o:i.options,a:i.answer,s:i.solution,u:i.unit,
                           m:i.mode,l:i.tol,x:i.alt,it:i.items,p:i.points||1,tn:i.topicName}))});
 }
@@ -69,9 +70,9 @@ export function decodeTest(code){
   if(mode==='S'){
     const items=generate({grade:d.g, topicKeys:d.t, count:d.c, types:d.y, seed:d.s});
     (d.p||[]).forEach((pt,i)=>{ if(items[i]) items[i].points=pt; });
-    return {name:d.n, grade:d.g, items, scale:d.sc};
+    return {name:d.n, grade:d.g, items, scale:d.sc, shuffle:!!d.sh};
   }
   const items=(d.i||[]).map((x,n)=>({id:'q'+n, type:x.t, q:x.q, options:x.o, answer:x.a, solution:x.s,
     unit:x.u, mode:x.m, tol:x.l, alt:x.x, items:x.it, points:x.p||1, topicName:x.tn}));
-  return {name:d.n, grade:d.g, items, scale:d.sc};
+  return {name:d.n, grade:d.g, items, scale:d.sc, shuffle:!!d.sh};
 }

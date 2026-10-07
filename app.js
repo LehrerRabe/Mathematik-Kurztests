@@ -1,9 +1,8 @@
-import {TOPICS, GRADES, TYPE_LABEL, topicsForGrade, topicByKey, generate, replaceItem} from './bank.js';
+import {TOPICS, GRADES, TYPE_LABEL, topicsForGrade, topicByKey, generate, replaceItem, replaceItemType} from './bank.js';
 import {Store, ONLINE} from './store.js';
 import {DEFAULT_SCALE, gradeFor, avgGrade, scaleToText} from './grading.js';
 import {scoreTest} from './evaluate.js';
-import {esc, todayISO, deDate, fmt, uid, pinHash, code} from './util.js';
-import {aiItems, aiConfigured} from './ai.js';
+import {esc, todayISO, deDate, fmt, uid, pinHash, code, fuerSchueler} from './util.js';
 import {TEACHER_PIN_HASH} from './config.js';
 import {encodeTest, decodeTest, canUseSeed} from './share.js';
 import qrcode from './qrcode-lib.mjs';
@@ -168,11 +167,13 @@ function viewNew(root){
     <div class="grid2">
       <div><label for="cnt">Anzahl der Testfragen insgesamt</label><input id="cnt" type="number" min="1" max="40" value="${S.count||8}"></div>
       <div><label for="auto">Davon automatisch aus der Aufgabenbank</label><input id="auto" type="number" min="0" max="40" value="${S.count||8}"></div>
-      <div><label for="ai">Davon von der KI erzeugt</label>
-        <select id="ai"><option value="0">keine</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></div>
-      <div><label>Rest: selbst eingeben</label>
-        <div class="note" id="restInfo" style="margin-top:0">0 Aufgaben legst du in der Vorschau selbst an.</div></div>
     </div>
+    <div class="note" id="restInfo" style="margin-top:10px">Alle Aufgaben werden erzeugt – du prüfst sie nur noch.</div>
+    <label>Für jede Schülerin und jeden Schüler mischen</label>
+    <div class="chips" id="shuf">
+      <label class="chip sel"><input type="checkbox" id="shufOn" checked> Reihenfolge der Aufgaben und Antwortmöglichkeiten mischen</label>
+    </div>
+    <div style="font-size:13px;color:var(--muted);margin-top:6px">Alle bekommen dieselben Aufgaben, aber in unterschiedlicher Abfolge – das erschwert das Abschauen beim Nachbarn.</div>
     <div class="row end" style="margin-top:18px"><button class="primary" id="gen">Test erzeugen</button></div>
   </div>`));
   const drawTopics=()=>{
@@ -182,42 +183,34 @@ function viewNew(root){
     qsa('#topics .chip').forEach(c=>c.querySelector('input').onchange=e=>c.classList.toggle('sel',e.target.checked));
   };
   qs('#gsel').onchange=drawTopics; drawTopics();
+  qsa('#shuf .chip').forEach(c=>c.querySelector('input').onchange=e=>c.classList.toggle('sel',e.target.checked));
   const syncRest=()=>{
     const tot=Math.max(1,Math.min(40,Number(qs('#cnt').value)||1));
     let auto=Math.max(0,Number(qs('#auto').value)||0);
-    const nai=Number(qs('#ai').value)||0;
-    if(auto+nai>tot){ auto=Math.max(0,tot-nai); qs('#auto').value=auto; }
-    const rest=tot-auto-nai;
+    if(auto>tot){ auto=tot; qs('#auto').value=auto; }
+    const rest=tot-auto;
     qs('#restInfo').textContent = rest===0
       ? 'Alle Aufgaben werden erzeugt \u2013 du pr\u00fcfst sie nur noch.'
       : rest+' Aufgabe'+(rest===1?'':'n')+' legst du in der Vorschau selbst an.';
-    return {tot, auto, nai, rest};
+    return {tot, auto, rest};
   };
-  ['#cnt','#auto','#ai'].forEach(sel=>qs(sel).addEventListener('input',syncRest));
-  qs('#ai').addEventListener('change',syncRest);
+  ['#cnt','#auto'].forEach(sel=>qs(sel).addEventListener('input',syncRest));
   syncRest();
   qsa('#types .chip').forEach(c=>c.querySelector('input').onchange=e=>c.classList.toggle('sel',e.target.checked));
-  if(!aiConfigured()) qs('#ai').disabled=true;
   qs('#gen').onclick=async ()=>{
     const grade=Number(qs('#gsel').value);
     const topicKeys=qsa('#topics input:checked').map(i=>i.value);
     const types=qsa('#types input:checked').map(i=>i.value);
-    const {tot, auto, nai, rest}=syncRest();
+    const {tot, auto, rest}=syncRest();
     if(!types.length) return toast('Bitte mindestens einen Aufgabentyp wählen.');
     S.grade=grade; S.count=tot; S.types=types;
     const seed = code(8);
+    const shuffle = !!qs('#shufOn').checked;
     let items = auto>0 ? generate({grade, topicKeys, count:auto, types, seed}) : [];
-    if(nai>0){
-      qs('#gen').disabled=true; qs('#gen').textContent='KI-Aufgaben werden erzeugt …';
-      const extra = await aiItems({grade, topics:(topicKeys.length?topicKeys:topicsForGrade(grade).map(t=>t.key)).map(k=>topicByKey(k).name), count:nai, types});
-      items = items.concat(extra);
-      qs('#gen').disabled=false; qs('#gen').textContent='Test erzeugen';
-      if(extra.length<nai) toast('Die KI hat nur '+extra.length+' von '+nai+' Aufgaben geliefert.');
-    }
     for(let i=0;i<rest;i++) items.push(blankItem(types[0]||'mc', grade));
     if(!items.length) return toast('Für diese Auswahl konnten keine Aufgaben erzeugt werden.');
-    S.draft={name:'', grade, topics:topicKeys, types, seed, items, scale:scale(),
-             pure:(auto===tot && nai===0 && rest===0)};
+    S.draft={name:'', grade, topics:topicKeys, types, seed, shuffle, items, scale:scale(),
+             pure:(auto===tot && rest===0)};
     preview(root);
   };
 }
@@ -350,6 +343,7 @@ function preview(root){
     <label for="tname" style="margin-top:22px">Name des Tests (zum Wiederfinden in der Bibliothek)</label>
     <input id="tname" placeholder="z. B. 7a – Prozentrechnung – Kurztest 1" value="${esc(d.name||'')}">
     <div class="note" style="margin-top:14px">Notenschlüssel: ${esc(scaleToText(d.scale))}</div>
+    <label><label class="chip ${d.shuffle?'sel':''}" style="margin-top:10px"><input type="checkbox" id="shufP" ${d.shuffle?'checked':''}> Reihenfolge je Schüler:in mischen</label></label>
     <div class="row end" style="margin-top:18px">
       <button id="back">Zurück zur Auswahl</button>
       <button id="again">Neu würfeln</button>
@@ -376,7 +370,8 @@ function preview(root){
         ${offen?'':`<div style="font-size:14px;color:var(--muted)"><strong>Lösung:</strong> ${esc(solText(it))}</div>`}
         <div class="row" style="margin-top:10px">
           <button class="sm" data-a="edit">Bearbeiten</button>
-          <button class="sm" data-a="rep" ${it.manual?'disabled title="Nur für Aufgaben aus der Bank"':''}>Ersetzen</button>
+          <button class="sm" data-a="rep" ${it.manual?'disabled title="Nur für Aufgaben aus der Bank"':'title="Neue Zahlen, gleiche Aufgabenart"'}>Andere Zahlen</button>
+          <button class="sm" data-a="rept" ${it.manual?'disabled title="Nur für Aufgaben aus der Bank"':'title="Andere Aufgabenart zum selben Thema"'}>Andere Art</button>
           <button class="sm danger" data-a="del">Löschen</button>
           <span style="flex:1"></span>
           <span style="font-size:13px;color:var(--muted)">Punkte</span>
@@ -386,6 +381,10 @@ function preview(root){
       qs('[data-a="del"]',el).onclick=()=>{ d.pure=false; d.items.splice(i,1); draw(); };
       qs('[data-a="rep"]',el).onclick=()=>{ if(it.manual) return; d.pure=false;
         const n=replaceItem(it,d.items,S.types); if(n){n.points=it.points||1; d.items[i]=n; draw();} else toast('Keine andere Aufgabe verfügbar.'); };
+      qs('[data-a="rept"]',el).onclick=()=>{ if(it.manual) return; d.pure=false;
+        const n=replaceItemType(it,d.items,S.types);
+        if(n){ n.points=it.points||1; d.items[i]=n; draw(); }
+        else toast('Zu diesem Thema gibt es keine andere Aufgabenart.'); };
       qs('[data-a="pts"]',el).onchange=e=>{ it.points=Math.max(1,Math.min(5,Number(e.target.value)||1)); };
       L.appendChild(el);
     });
@@ -406,6 +405,8 @@ function preview(root){
     d.items=generate({grade:d.grade, topicKeys:d.topics, count:n, types:S.types}).concat(manuell);
     toast(manuell.length? 'Neu gewürfelt – deine eigenen und bearbeiteten Aufgaben bleiben erhalten.':'Neu gewürfelt.');
     draw(); };
+  const sp=qs('#shufP',card);
+  if(sp) sp.onchange=e=>{ d.shuffle=e.target.checked; e.target.closest('.chip').classList.toggle('sel',e.target.checked); };
   qs('#back',card).onclick=()=>{
     if(d.items.length && !confirm('Dieser Entwurf geht dabei verloren. Zurück zur Auswahl?')) return;
     S.draft=null; S.editing=null; viewNew(root);
@@ -426,7 +427,7 @@ function preview(root){
     if(offen.length) return toast(offen.length+' Aufgabe(n) sind noch nicht ausgefüllt.');
     await busy(async()=>{
       await Store.saveTest({name, grade:d.grade, topics:d.topics, types:d.types, seed:d.seed,
-        pure:d.pure && !d.items.some(i=>i.manual||i.edited||i.ai), items:d.items, scale:d.scale});
+        shuffle:!!d.shuffle, pure:d.pure && !d.items.some(i=>i.manual||i.edited), items:d.items, scale:d.scale});
       S.draft=null; toast('Test gespeichert.'); go('#/lehrer/bibliothek');
     });
   };
@@ -747,10 +748,6 @@ function viewSettings(root){
     <label>Project URL</label><input id="su" placeholder="https://xxxx.supabase.co" value="${esc(localStorage.getItem('mt_sb_url')||'')}">
     <label>anon public key</label><input id="sk" placeholder="eyJhbGciOi…" value="${esc(localStorage.getItem('mt_sb_key')||'')}">
     <div class="row end" style="margin-top:12px"><button class="primary" id="sbs">Speichern und neu laden</button></div></div>
-  <div class="card"><h2>KI-Aufgaben (optional)</h2>
-    <p class="sub">Mit einem Anthropic-API-Schlüssel kann die App zusätzliche Aufgaben erzeugen. Der Schlüssel bleibt nur in diesem Browser. Prüfe KI-Aufgaben immer in der Vorschau.</p>
-    <label>API-Schlüssel</label><input id="ak" type="password" placeholder="sk-ant-…" value="${esc(localStorage.getItem('mt_ai_key')||'')}">
-    <div class="row end" style="margin-top:12px"><button class="primary" id="aks">Speichern</button></div></div>
   <div class="card"><h2>Passwort für den Lehrer-Bereich</h2>
     <p class="sub">Hält Schüler:innen aus der Lehreransicht heraus. <strong>Kein echter Zugriffsschutz:</strong> die Prüfung läuft im Browser, wer den Quelltext liest, kommt daran vorbei. Für die Ergebnisdaten gilt der Hinweis beim Cloud-Speicher.</p>
     <label for="pn">Neues Passwort (leer = kein Schutz)</label><input id="pn" type="password" autocomplete="new-password" placeholder="unverändert lassen = aktuelles Passwort behalten">
@@ -765,7 +762,6 @@ function viewSettings(root){
   };
   qs('#scr').onclick=()=>{ lset('scale',DEFAULT_SCALE); toast('Standard wiederhergestellt.'); viewSettings(root); };
   qs('#sbs').onclick=()=>{ localStorage.setItem('mt_sb_url',qs('#su').value.trim()); localStorage.setItem('mt_sb_key',qs('#sk').value.trim()); location.reload(); };
-  qs('#aks').onclick=()=>{ localStorage.setItem('mt_ai_key',qs('#ak').value.trim()); toast('Gespeichert.'); };
   qs('#pns').onclick=()=>{
     const v=qs('#pn').value;
     const hash = v? pinHash(v) : '';
@@ -805,7 +801,7 @@ async function classEntry(classId){
       <div class="row" style="margin-top:10px"><button class="sm primary">Test starten</button></div></div>`);
     qs('button',el).onclick=()=>{
       const n=qs('#nm',card).value; if(!n) return toast('Bitte wähle zuerst deinen Namen.');
-      runTest(a,t,cls,n);
+      runTest(a,fuerSchueler(t),cls,n);
     };
     L.appendChild(el);
   });
@@ -829,7 +825,7 @@ async function codeEntry(code){
     <select id="nm"><option value="">– bitte auswählen –</option>${cls.students.map(s=>`<option>${esc(s)}</option>`).join('')}</select>
     <div class="row end" style="margin-top:16px"><button class="primary" id="st">Test starten</button></div></div>`);
   app.appendChild(card);
-  qs('#st',card).onclick=()=>{ const n=qs('#nm',card).value; if(!n) return toast('Bitte wähle zuerst deinen Namen.'); runTest(a,t,cls,n); };
+  qs('#st',card).onclick=()=>{ const n=qs('#nm',card).value; if(!n) return toast('Bitte wähle zuerst deinen Namen.'); runTest(a,fuerSchueler(t),cls,n); };
 }
 
 /* ---------- Selbstkontrolle: Test steckt komplett im Link ---------- */
@@ -850,7 +846,7 @@ function selfTest(codeStr){
     <div class="note">Am Ende siehst du deine Punkte, deine Note und zu jeder Aufgabe den Lösungsweg.
       Dein Ergebnis wird nirgends gespeichert und nicht weitergeschickt – es ist nur für dich.</div>
     <div class="row end" style="margin-top:18px"><button class="primary" id="go">Test starten</button></div></div>`));
-  qs('#go').onclick=()=>runTest(null, test, null, null);
+  qs('#go').onclick=()=>runTest(null, fuerSchueler(test), null, null);
 }
 
 /* ---------- Testdurchführung ---------- */
@@ -980,6 +976,15 @@ function showResult(r, test, student){
         ? (good?'Dein Ergebnis wurde gespeichert. Unten siehst du die Lösungen.':'Dein Ergebnis wurde gespeichert. Schau dir unten in Ruhe die Lösungswege an.')
         : 'Dein Ergebnis wird nicht gespeichert und nicht weitergeschickt. Schau dir unten in Ruhe die Lösungswege an – du kannst den Test jederzeit neu starten.'}</div>
   </div>
+  <div class="card" id="printHost">
+    <h2>Ergebnis sichern</h2>
+    <p class="sub">Du kannst dein Ergebnis als PDF speichern und deiner Lehrkraft geben.</p>
+    <label for="pname">Dein Name (erscheint auf dem PDF)</label>
+    <input id="pname" placeholder="z. B. Anna B." autocomplete="name">
+    <div class="row" style="margin-top:12px"><button class="primary" id="pdf">Als PDF sichern</button></div>
+    <div style="font-size:13px;color:var(--muted);margin-top:8px">Es öffnet sich das Druckfenster – dort „Als PDF sichern“ wählen.</div>
+    <div id="printArea"></div>
+  </div>
   <div class="card"><h2>Lösungen</h2><div id="sl"></div>
   <div class="row end" style="margin-top:16px"><button id="done">Noch einmal versuchen</button></div></div>`));
   const L=qs('#sl');
@@ -993,6 +998,28 @@ function showResult(r, test, student){
       <div class="res ${d.correct?'ok':'bad'}">Deine Antwort: ${esc(given)}${d.correct?' – richtig':' – richtig wäre: '+esc(sol)}</div>
       ${d.solution?`<div style="font-size:14px;color:var(--muted)">${esc(d.solution)}</div>`:''}</div>`));
   });
+  qs('#pdf').onclick=()=>{
+    const nm=(qs('#pname').value||'').trim();
+    const jetzt=new Date();
+    const zeit=deDate(jetzt.getFullYear()+'-'+String(jetzt.getMonth()+1).padStart(2,'0')+'-'+String(jetzt.getDate()).padStart(2,'0'))
+      +', '+String(jetzt.getHours()).padStart(2,'0')+':'+String(jetzt.getMinutes()).padStart(2,'0')+' Uhr';
+    qs('#printArea').innerHTML =
+      '<h1>'+esc(test.name||'Kurztest')+'</h1>'
+      + '<div class="meta">'+(nm?'Name: <strong>'+esc(nm)+'</strong> · ':'')+zeit+'</div>'
+      + '<div class="score">Note '+esc(r.grade)+' · '+fmt(r.points)+' von '+fmt(r.max)+' Punkten · '+fmt(r.percent)+' %</div>'
+      + r.detail.map((d,i)=>{
+          const geg = Array.isArray(d.given)? d.given.join(' → ')
+            : (d.type==='tf' ? (d.given===true?'wahr':d.given===false?'falsch':'–')
+            : (d.type==='mc' ? (test.items[i].options? test.items[i].options[d.given] : '–')
+            : (d.given===undefined||d.given===''?'–':d.given)));
+          return '<div class="pq"><div class="t">'+(i+1)+'. '+esc(d.q)+'</div>'
+               + '<div class="a">Antwort: '+esc(geg)+' — '+(d.correct?'richtig':'falsch')
+               + ' ('+fmt(d.earned)+' von '+fmt(d.points)+' P.)</div></div>';
+        }).join('')
+      + '<div class="foot">Erstellt mit der App „Mathe-Kurztests“. Dieses Blatt wird auf dem Gerät '
+      + 'der Schülerin oder des Schülers erzeugt und ist kein fälschungssicherer Nachweis.</div>';
+    window.print();
+  };
   qs('#done').onclick=()=>{ if(!student){ location.reload(); } else go('#/'); };
 }
 

@@ -1,35 +1,37 @@
-import {mc,tf,num,txt,ord,nearNums,R,fmt,gcd,fracStr} from './bank-core.js';
+import {mc,tf,num,txt,ord,nearNums,R,fmt,gcd,fracStr, nz, klammer, term, plusZahl, plusTerm} from './bank-core.js';
 export default [
 {key:'g8-linfunk', grade:8, name:'Lineare Funktionen', gens:[
  r=>{const m=R.int(r,-6,6)||2, b=R.int(r,-9,9), x=R.int(r,-6,6);
-     return num('Gegeben ist f(x) = '+m+'x + '+b+'. Berechne f('+x+').', m*x+b, 'f('+x+') = '+m+' · ('+x+') + '+b+' = '+(m*x+b)+'.');},
+     return num('Gegeben ist f(x) = '+term(m,'x')+plusZahl(b)+'. Berechne f('+nz(x)+').', m*x+b,
+       'f('+nz(x)+') = '+nz(m)+' · '+klammer(x)+plusZahl(b)+' = '+nz(m*x+b)+'.');},
  r=>{const m=R.int(r,1,8), b=R.int(r,-9,9);
-     return num('Wie lautet die Steigung von f(x) = '+m+'x + '+b+'?', m, 'Die Steigung ist der Faktor vor x: m = '+m+'.');},
+     return num('Wie lautet die Steigung von f(x) = '+term(m,'x')+plusZahl(b)+'?', m, 'Die Steigung ist der Faktor vor x: m = '+m+'.');},
  r=>{const m=R.int(r,1,6), b=m*R.int(r,1,6)*(r()<0.5?-1:1); const x0=-b/m;
-     return num('Berechne die Nullstelle von f(x) = '+m+'x + '+(b>=0?'+':'')+b+'.', x0, m+'x '+(b>=0?'+ ':'− ')+Math.abs(b)+' = 0 → x = '+fmt(x0)+'.',{tol:0.01});},
+     return num('Berechne die Nullstelle von f(x) = '+term(m,'x')+plusZahl(b)+'.', x0,
+       term(m,'x')+plusZahl(b)+' = 0 → x = '+nz(fmt(x0))+'.',{tol:0.01});},
  r=>{const x1=R.int(r,-5,2), y1=R.int(r,-8,8), dx=R.int(r,1,5), m=R.int(r,-5,5)||2;
      const x2=x1+dx, y2=y1+m*dx;
-     return num('Eine Gerade geht durch P('+x1+'|'+y1+') und Q('+x2+'|'+y2+'). Berechne die Steigung m.', m,
-       'm = (y₂ − y₁)/(x₂ − x₁) = ('+y2+' − '+y1+')/('+x2+' − '+x1+') = '+m+'.',{tol:0.01});},
+     return num('Eine Gerade geht durch P('+nz(x1)+'|'+nz(y1)+') und Q('+nz(x2)+'|'+nz(y2)+'). Berechne die Steigung m.', m,
+       'm = (y₂ − y₁)/(x₂ − x₁) = ('+klammer(y2)+' − '+klammer(y1)+')/('+klammer(x2)+' − '+klammer(x1)+') = '+nz(m)+'.',{tol:0.01});},
  r=>tf('Der Graph einer linearen Funktion ist immer eine Gerade.', true, 'f(x) = mx + b hat stets einen geradlinigen Graphen.'),
  r=>{const m=R.int(r,2,9); let b=R.int(r,-9,9); if(b===0||b===m) b=m+2;
-     return mc('Wo schneidet der Graph von f(x) = '+m+'x '+(b>=0?'+ ':'− ')+Math.abs(b)+' die y-Achse?',
-     '(0|'+b+')', ['('+b+'|0)','(0|'+m+')','('+m+'|'+b+')'], 'Für x = 0 ist f(0) = '+b+', also S(0|'+b+').', r);},
+     return mc('Wo schneidet der Graph von f(x) = '+term(m,'x')+plusZahl(b)+' die y-Achse?',
+     '(0|'+nz(b)+')', ['('+nz(b)+'|0)','(0|'+m+')','('+m+'|'+nz(b)+')'], 'Für x = 0 ist f(0) = '+nz(b)+', also S(0|'+nz(b)+').', r);},
  r=>ord('Ordne die Geraden nach ihrer Steigung – beginne mit der kleinsten.',
      ['y = −3x + 1','y = −0,5x','y = 0,5x + 4','y = 2x − 7'],'Vergleiche nur den Faktor vor x: −3 < −0,5 < 0,5 < 2.',r)
 ]},
 {key:'g8-terme', grade:8, name:'Terme mit mehreren Variablen / binomische Formeln', gens:[
  r=>{const a=R.int(r,1,9), b=R.int(r,1,9);
      return txt('Multipliziere aus: ('+(a===1?'':a)+'x + '+b+')² (Form: 4x^2+12x+9)',
-       (a*a)+'x^2+'+(2*a*b)+'x+'+(b*b), '1. binomische Formel: ('+a+'x)² + 2·'+a+'x·'+b+' + '+b+'² = '+(a*a)+'x² + '+(2*a*b)+'x + '+(b*b)+'.',
+       (a*a)+'x^2+'+(2*a*b)+'x+'+(b*b), '1. binomische Formel: ('+term(a,'x')+')² + 2·'+term(a,'x')+'·'+b+' + '+b+'² = '+term(a*a,'x²')+' + '+(2*a*b)+'x + '+(b*b)+'.',
        [(a*a)+'x²+'+(2*a*b)+'x+'+(b*b)]);},
  r=>{const a=R.int(r,1,9), b=R.int(r,1,9);
      return txt('Multipliziere aus: ('+(a===1?'':a)+'x − '+b+')² (Form: 4x^2-12x+9)',
-       (a*a)+'x^2-'+(2*a*b)+'x+'+(b*b), '2. binomische Formel: '+(a*a)+'x² − '+(2*a*b)+'x + '+(b*b)+'.',
+       (a*a)+'x^2-'+(2*a*b)+'x+'+(b*b), '2. binomische Formel: '+term(a*a,'x²')+' − '+(2*a*b)+'x + '+(b*b)+'.',
        [(a*a)+'x²-'+(2*a*b)+'x+'+(b*b)]);},
  r=>{const a=R.int(r,1,9), b=R.int(r,1,9);
      return txt('Multipliziere aus: ('+(a===1?'':a)+'x + '+b+')('+(a===1?'':a)+'x − '+b+') (Form: 4x^2-9)',
-       (a*a)+'x^2-'+(b*b), '3. binomische Formel: ('+a+'x)² − '+b+'² = '+(a*a)+'x² − '+(b*b)+'.', [(a*a)+'x²-'+(b*b)]);},
+       (a*a)+'x^2-'+(b*b), '3. binomische Formel: ('+term(a,'x')+')² − '+b+'² = '+term(a*a,'x²')+' − '+(b*b)+'.', [(a*a)+'x²-'+(b*b)]);},
  r=>{const b=R.int(r,2,12);
      return mc('Welche Formel passt zu x² − '+(b*b)+'?', '(x + '+b+')(x − '+b+')',
        ['(x − '+b+')²','(x + '+b+')²','x(x − '+(b*b)+')'], '3. binomische Formel.', r);},
@@ -59,12 +61,12 @@ export default [
 {key:'g8-lgs', grade:8, name:'Lineare Gleichungssysteme', gens:[
  r=>{const x=R.int(r,-6,8), y=R.int(r,-6,8);
      const a=R.int(r,1,5),b=R.int(r,1,5),c=R.int(r,1,5),d=R.int(r,1,5);
-     if(a*d-b*c===0) return num('Löse: x + y = '+(x+y)+' und x − y = '+(x-y)+'. Gib x an.', x, 'Addition: 2x = '+(2*x)+' → x = '+x+'.');
-     return num('Löse das Gleichungssystem: '+a+'x + '+b+'y = '+(a*x+b*y)+' und '+c+'x + '+d+'y = '+(c*x+d*y)+'. Gib den Wert von x an.',
-       x, 'Additions- oder Einsetzungsverfahren führt auf x = '+x+' und y = '+y+'.',{tol:0.01});},
+     if(a*d-b*c===0) return num('Löse: x + y = '+nz(x+y)+' und x − y = '+nz(x-y)+'. Gib x an.', x, 'Addition: 2x = '+nz(2*x)+' → x = '+nz(x)+'.');
+     return num('Löse das Gleichungssystem: '+term(a,'x')+plusTerm(b,'y')+' = '+nz(a*x+b*y)+' und '+term(c,'x')+plusTerm(d,'y')+' = '+nz(c*x+d*y)+'. Gib den Wert von x an.',
+       x, 'Additions- oder Einsetzungsverfahren führt auf x = '+nz(x)+' und y = '+nz(y)+'.',{tol:0.01});},
  r=>{const x=R.int(r,-6,8), y=R.int(r,-6,8);
-     return num('Löse: x + y = '+(x+y)+' und x − y = '+(x-y)+'. Gib den Wert von y an.', y,
-       'Subtraktion der Gleichungen: 2y = '+(2*y)+' → y = '+y+'.');},
+     return num('Löse: x + y = '+nz(x+y)+' und x − y = '+nz(x-y)+'. Gib den Wert von y an.', y,
+       'Subtraktion der Gleichungen: 2y = '+nz(2*y)+' → y = '+nz(y)+'.');},
  r=>{const V=['Gleichsetzungsverfahren','Einsetzungsverfahren','Additionsverfahren'];
      const v=R.pick(r,V);
      const T={'Gleichsetzungsverfahren':'Beide Gleichungen werden nach derselben Variablen aufgelöst und gleichgesetzt.',

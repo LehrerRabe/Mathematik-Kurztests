@@ -1,4 +1,4 @@
-import {mc,tf,num,txt,ord,nearNums,R,fmt,gcd,fracStr} from './bank-core.js';
+import {mc,tf,num,txt,ord,nearNums,R,fmt,gcd,fracStr, nz, klammer, term, plusZahl, plusTerm} from './bank-core.js';
 const dec=(x,d)=>fmt(Math.round(x*Math.pow(10,d))/Math.pow(10,d),d);
 
 export default [
@@ -62,11 +62,11 @@ export default [
  r=>{const a=R.int(r,10,170); return num('Wie groß ist der Nebenwinkel eines Winkels von '+a+'°?', 180-a, 'Nebenwinkel ergänzen sich zu 180°: 180° − '+a+'° = '+(180-a)+'°.',{unit:'°'});},
  r=>{const a=R.int(r,-20,-1), b=R.int(r,1,20);
      return tf(a+' < '+b, true, 'Negative Zahlen sind immer kleiner als positive Zahlen.');},
- r=>{const L=R.sample(r,[-12,-7,-3,-1,0,2,5,9,14],4).sort((a,b)=>a-b).map(String);
+ r=>{const L=R.sample(r,[-12,-7,-3,-1,0,2,5,9,14],4).sort((a,b)=>a-b).map(nz);
      return ord('Ordne die Zahlen vom kleinsten zum größten Wert.', L, 'Auf der Zahlengeraden liegt die kleinere Zahl weiter links.', r);},
  r=>{const x=R.int(r,-6,6), y=R.int(r,-6,6); const dx=R.int(r,-5,5), dy=R.int(r,-5,5);
-     return txt('Der Punkt P('+x+'|'+y+') wird um '+dx+' in x-Richtung und '+dy+' in y-Richtung verschoben. Gib den Bildpunkt an (Form: (x|y) ).',
-       '('+(x+dx)+'|'+(y+dy)+')','Koordinaten addieren: ('+x+'+'+dx+' | '+y+'+'+dy+') = ('+(x+dx)+'|'+(y+dy)+').',[(x+dx)+'|'+(y+dy)]);},
+     return txt('Der Punkt P('+nz(x)+'|'+nz(y)+') wird um '+nz(dx)+' in x-Richtung und '+nz(dy)+' in y-Richtung verschoben. Gib den Bildpunkt an (Form: (x|y) ).',
+       '('+(x+dx)+'|'+(y+dy)+')','Koordinaten addieren: ('+nz(x)+plusZahl(dx)+' | '+nz(y)+plusZahl(dy)+') = ('+nz(x+dx)+'|'+nz(y+dy)+').',[(x+dx)+'|'+(y+dy)]);},
  r=>{const a=R.int(r,20,80), b=R.int(r,20,80); const c=180-a-b;
      return num('In einem Dreieck sind zwei Winkel '+a+'° und '+b+'° groß. Wie groß ist der dritte Winkel?', c,
        'Winkelsumme im Dreieck = 180°: 180° − '+a+'° − '+b+'° = '+c+'°.',{unit:'°'});}

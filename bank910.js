@@ -1,4 +1,4 @@
-import {mc,tf,num,txt,ord,nearNums,R,fmt,gcd,fracStr} from './bank-core.js';
+import {mc,tf,num,txt,ord,nearNums,R,fmt,gcd,fracStr, nz, klammer, term, plusZahl, plusTerm} from './bank-core.js';
 const PI=Math.PI;
 export const G9=[
 {key:'g9-reelle', grade:9, name:'Reelle Zahlen und Wurzeln', gens:[
@@ -15,18 +15,19 @@ export const G9=[
 ]},
 {key:'g9-quadfunk', grade:9, name:'Quadratische Funktionen', gens:[
  r=>{const a=R.pick(r,[1,2,-1,-2,0.5]), d=R.int(r,-5,5), e=R.int(r,-8,8);
-     return txt('Gib den Scheitelpunkt von f(x) = '+(a===1?'':a===-1?'−':fmt(a))+'(x '+(d>=0?'− '+d:'+ '+(-d))+')² '+(e>=0?'+ '+e:'− '+(-e))+' an (Form: (x|y) ).',
-       '('+d+'|'+e+')','Scheitelpunktform f(x)=a(x−d)²+e → S('+d+'|'+e+').',[d+'|'+e]);},
+     return txt('Gib den Scheitelpunkt von f(x) = '+(a===1?'':a===-1?'−':fmt(a))+'(x'+plusZahl(-d)+')²'+plusZahl(e)+' an (Form: (x|y) ).',
+       '('+d+'|'+e+')','Scheitelpunktform f(x) = a(x − d)² + e → S('+nz(d)+'|'+nz(e)+').',[d+'|'+e]);},
  r=>{const d=R.int(r,-6,6), e=R.int(r,-8,8), x=R.int(r,-4,4);
      const v=(x-d)*(x-d)+e;
-     return num('Berechne f('+x+') für f(x) = (x − '+d+')² + '+e+'.', v, '('+x+' − '+d+')² + '+e+' = '+((x-d)*(x-d))+' + '+e+' = '+v+'.');},
+     return num('Berechne f('+nz(x)+') für f(x) = (x'+plusZahl(-d)+')²'+plusZahl(e)+'.', v,
+       '('+klammer(x)+plusZahl(-d)+')²'+plusZahl(e)+' = '+((x-d)*(x-d))+plusZahl(e)+' = '+nz(v)+'.');},
  r=>{const p=R.int(r,-8,8), q=R.int(r,-8,8);
      const disc=p*p/4-q;
-     return mc('Wie viele Nullstellen hat f(x) = x² + '+p+'x + '+q+'?', disc>0?'zwei':disc===0?'eine':'keine',
+     return mc('Wie viele Nullstellen hat f(x) = x²'+plusTerm(p,'x')+plusZahl(q)+'?', disc>0?'zwei':disc===0?'eine':'keine',
        disc>0?['eine','keine','drei']:disc===0?['zwei','keine','drei']:['zwei','eine','drei'],
-       'Diskriminante (p/2)² − q = '+fmt(disc)+' → '+(disc>0?'zwei':disc===0?'eine':'keine')+' Nullstelle(n).', r);},
+       'Diskriminante (p/2)² − q = '+nz(fmt(disc))+' → '+(disc>0?'zwei':disc===0?'eine':'keine')+' Nullstelle(n).', r);},
  r=>{const a=R.pick(r,[2,3,0.5,-2,-0.5]);
-     return tf('Der Graph von f(x) = '+fmt(a)+'x² ist nach '+(a>0?'oben':'unten')+' geöffnet.', true,
+     return tf('Der Graph von f(x) = '+nz(fmt(a))+'x² ist nach '+(a>0?'oben':'unten')+' geöffnet.', true,
        'a '+(a>0?'> 0 → nach oben':'< 0 → nach unten')+' geöffnet.');},
  r=>{const d=R.int(r,1,6);
      return mc('Wie entsteht der Graph von f(x) = (x − '+d+')² aus der Normalparabel?', 'Verschiebung um '+d+' nach rechts',
@@ -106,19 +107,19 @@ export const G9=[
 export const G10=[
 {key:'g10-quadgl', grade:10, name:'Quadratische Gleichungen', gens:[
  r=>{const x1=R.int(r,-8,8), x2=R.int(r,-8,8); const p=-(x1+x2), q=x1*x2;
-     return num('Löse x² '+(p>=0?'+ '+p:'− '+(-p))+'x '+(q>=0?'+ '+q:'− '+(-q))+' = 0. Gib die größere Lösung an.',
-       Math.max(x1,x2), 'p-q-Formel: x = −('+p+')/2 ± √((('+p+')/2)² − ('+q+')) → x₁ = '+x1+', x₂ = '+x2+'.',{tol:0.01});},
+     return num('Löse x²'+plusTerm(p,'x')+plusZahl(q)+' = 0. Gib die größere Lösung an.',
+       Math.max(x1,x2), 'p-q-Formel mit p = '+nz(p)+' und q = '+nz(q)+': x = −p/2 ± √((p/2)² − q) → x₁ = '+nz(x1)+', x₂ = '+nz(x2)+'.',{tol:0.01});},
  r=>{const x1=R.int(r,-8,8), x2=R.int(r,-8,8); const p=-(x1+x2), q=x1*x2;
-     return num('Löse x² '+(p>=0?'+ '+p:'− '+(-p))+'x '+(q>=0?'+ '+q:'− '+(-q))+' = 0. Gib die kleinere Lösung an.',
-       Math.min(x1,x2), 'Lösungen: '+x1+' und '+x2+'.',{tol:0.01});},
+     return num('Löse x²'+plusTerm(p,'x')+plusZahl(q)+' = 0. Gib die kleinere Lösung an.',
+       Math.min(x1,x2), 'Lösungen: '+nz(x1)+' und '+nz(x2)+'.',{tol:0.01});},
  r=>{const a=R.int(r,2,12); return num('Löse x² = '+(a*a)+'. Gib die positive Lösung an.', a, 'x = ±√'+(a*a)+' = ±'+a+'.',{tol:0.01});},
  r=>{const x1=R.int(r,1,8), x2=R.int(r,1,8);
-     return mc('Welche Linearfaktorzerlegung gehört zu x² − '+(x1+x2)+'x + '+(x1*x2)+'?','(x − '+x1+')(x − '+x2+')',
+     return mc('Welche Linearfaktorzerlegung gehört zu x²'+plusTerm(-(x1+x2),'x')+plusZahl(x1*x2)+'?','(x − '+x1+')(x − '+x2+')',
        ['(x + '+x1+')(x + '+x2+')','(x − '+x1+')(x + '+x2+')','(x + '+(x1+x2)+')(x − '+(x1*x2)+')'],
        'Satz von Vieta: Summe der Nullstellen = '+(x1+x2)+', Produkt = '+(x1*x2)+'.', r);},
  r=>{const p=R.int(r,-8,8), q=R.int(r,1,20); const D=p*p/4-q;
-     return tf('Die Gleichung x² '+(p>=0?'+ '+p:'− '+(-p))+'x + '+q+' = 0 hat reelle Lösungen.', D>=0,
-       'Diskriminante (p/2)² − q = '+fmt(D,2)+' '+(D>=0?'≥ 0 → Lösungen existieren.':'< 0 → keine reelle Lösung.'));},
+     return tf('Die Gleichung x²'+plusTerm(p,'x')+plusZahl(q)+' = 0 hat reelle Lösungen.', D>=0,
+       'Diskriminante (p/2)² − q = '+nz(fmt(D,2))+' '+(D>=0?'≥ 0 → Lösungen existieren.':'< 0 → keine reelle Lösung.'));},
  r=>ord('Ordne die Schritte zur Lösung von 2x² + 4x − 6 = 0 mit der p-q-Formel.',
      ['Durch 2 teilen: x² + 2x − 3 = 0','p = 2 und q = −3 ablesen','x = −1 ± √(1 + 3) berechnen','Lösungen x₁ = 1 und x₂ = −3 angeben'],
      'Die p-q-Formel setzt die Normalform mit Leitkoeffizient 1 voraus.',r)
@@ -180,7 +181,7 @@ export const G10=[
 {key:'g10-trigfunk', grade:10, name:'Trigonometrische Funktionen', gens:[
  r=>{const a=R.int(r,2,8); return num('Wie groß ist die Amplitude von f(x) = '+a+'·sin(x)?', a, 'Die Amplitude ist der Betrag des Vorfaktors: '+a+'.');},
  r=>{const b=R.pick(r,[1,2,3,4]); const p=360/b;
-     return num('Welche Periode (in Grad) hat f(x) = sin('+b+'x)?', p, 'Periode = 360°/'+b+' = '+p+'°.',{unit:'°'});},
+     return num('Welche Periode (in Grad) hat f(x) = sin('+term(b,'x')+')?', p, 'Periode = 360°/'+b+' = '+p+'°.',{unit:'°'});},
  r=>{const W=[[0,'0'],[90,'1'],[180,'0'],[270,'−1']]; const w=R.pick(r,W);
      const wrong=[...new Set(['0','1','−1','0,5'].filter(x=>x!==w[1]))];
      return mc('Wie groß ist sin('+w[0]+'°)?', w[1], wrong, 'Am Einheitskreis: sin('+w[0]+'°) = '+w[1]+'.', r);},

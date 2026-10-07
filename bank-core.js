@@ -33,3 +33,27 @@ export function nearNums(rng, v, n, step){
   return [...out];
 }
 export {R, fmt, gcd, fracStr};
+
+/* ---- Vorzeichen- und Termdarstellung ----
+   Sorgt dafuer, dass nie "+ -9", "1x" oder "x − -3" im Aufgabentext steht. */
+const MIN = '−';                       // typografisches Minus
+export function nz(n){                      // Zahl anzeigen
+  return String(n).replace(/^-/, MIN);
+}
+export function klammer(n){                 // Zahl, bei negativem Wert in Klammern
+  return n<0 ? '('+MIN+Math.abs(n)+')' : String(n);
+}
+export function term(c, v){                 // Koeffizient vor Variable: x, −x, 3x, −3x
+  if(c===1) return v;
+  if(c===-1) return MIN+v;
+  return nz(c)+v;
+}
+export function plusZahl(n){                // " + 3" / " − 3"; 0 ergibt ""
+  if(n===0) return '';
+  return (n<0 ? ' '+MIN+' ' : ' + ') + Math.abs(n);
+}
+export function plusTerm(c, v){             // " + 3x" / " − x"; 0 ergibt ""
+  if(c===0) return '';
+  const a=Math.abs(c);
+  return (c<0 ? ' '+MIN+' ' : ' + ') + (a===1 ? v : a+v);
+}

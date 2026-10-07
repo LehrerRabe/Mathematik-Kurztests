@@ -18,9 +18,12 @@ export function fmt(n,dec){
 }
 export function fracStr(z,n){const g=gcd(z,n);z/=g;n/=g;if(n<0){z=-z;n=-n;}return n===1?String(z):z+'/'+n;}
 /* Antwortvergleich fuer Eingabefelder */
+/* Vereinheitlicht Schuelereingaben: verschiedene Minuszeichen, Leerzeichen,
+   Komma/Punkt, Tausenderpunkte und Einheiten. */
 export function normAnswer(s){
   return String(s).trim().toLowerCase()
-    .replace(/\s+/g,'')
+    .replace(/[\u2212\u2013\u2014\u2012\u02d7\uff0d\u2796]/g,'-')  /* alle Minus-Varianten */
+    .replace(/[\u00a0\u202f\u2009\s]+/g,'')                        /* auch schmale Leerzeichen */
     .replace(/^\+/,'')
     .replace(/€|eur|euro/g,'')
     .replace(/,/g,'.');
@@ -46,4 +49,31 @@ export function pinHash(s){
     b=Math.imul(b^s.charCodeAt(i),16777619)>>>0;
   }
   return a.toString(36)+'-'+b.toString(36);
+}
+
+/* Mischt ein Array mit echtem Zufall (nicht reproduzierbar - pro Schueler verschieden). */
+export function shuffleOnce(arr){
+  const a=arr.slice();
+  for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+/* Bereitet einen Test fuer eine einzelne Schuelerin vor: Reihenfolge der Aufgaben
+   und der Antwortmoeglichkeiten mischen, ohne die Loesung zu verlieren. */
+export function fuerSchueler(test){
+  if(!test || !test.shuffle) return test;
+  const items = shuffleOnce(test.items).map(it=>{
+    const k = Object.assign({}, it);
+    if(k.type==='mc' && Array.isArray(k.options)){
+      const richtig = k.options[k.answer];
+      k.options = shuffleOnce(k.options);
+      k.answer  = k.options.indexOf(richtig);
+    }
+    if(k.type==='order' && Array.isArray(k.answer)){
+      let gemischt = shuffleOnce(k.answer), guard=0;
+      while(gemischt.join('|')===k.answer.join('|') && guard++<20) gemischt = shuffleOnce(k.answer);
+      k.items = gemischt;
+    }
+    return k;
+  });
+  return Object.assign({}, test, {items});
 }

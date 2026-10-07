@@ -89,3 +89,22 @@ th{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04
 .ed .optrow input[type="text"]{flex:1}
 .ed .optrow input[type="radio"]{width:auto;flex:none}
 .ed .optrow span{font-size:13px;color:var(--muted);white-space:nowrap}
+
+/* ---- Druckansicht fuer den PDF-Export des Ergebnisses ---- */
+#printArea{display:none}
+@media print{
+  header.top, .row, button, .toast, #app > .card:not(#printHost){display:none!important}
+  #printHost{display:block!important;box-shadow:none;border:0;padding:0;margin:0}
+  #printHost > *{display:none!important}
+  #printHost > #printArea{display:block!important}
+  #printArea{display:block;color:#000;background:#fff;font-size:11pt}
+  #printArea h1{font-size:16pt;margin:0 0 2mm}
+  #printArea .meta{font-size:10pt;color:#333;margin:0 0 5mm}
+  #printArea .score{font-size:13pt;font-weight:700;margin:0 0 5mm}
+  #printArea .pq{border-top:1px solid #bbb;padding:2.5mm 0;page-break-inside:avoid}
+  #printArea .pq .t{font-weight:600}
+  #printArea .pq .a{font-size:10pt}
+  #printArea .foot{margin-top:6mm;font-size:8.5pt;color:#555;border-top:1px solid #bbb;padding-top:2mm}
+  body{background:#fff}
+  @page{margin:16mm}
+}
