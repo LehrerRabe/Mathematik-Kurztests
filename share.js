@@ -58,7 +58,7 @@ export function encodeTest(test){
   if(canUseSeed(test)){
     return 'S'+toText({v:1, n:test.name, g:test.grade, t:test.topics||[], c:test.items.length,
                         y:test.types||[], s:test.seed, p:test.items.map(i=>i.points||1), sc:test.scale,
-                        sh:test.shuffle?1:0});
+                        sh:test.shuffle?1:0, pa:test.params||null});
   }
   return 'F'+toText({v:1, n:test.name, g:test.grade, sc:test.scale, sh:test.shuffle?1:0,
     i:test.items.map(i=>({t:i.type,q:i.q,o:i.options,a:i.answer,s:i.solution,u:i.unit,
@@ -68,7 +68,7 @@ export function decodeTest(code){
   const mode=code[0], body=code.slice(1);
   const d=fromText(body);
   if(mode==='S'){
-    const items=generate({grade:d.g, topicKeys:d.t, count:d.c, types:d.y, seed:d.s});
+    const items=generate({grade:d.g, topicKeys:d.t, count:d.c, types:d.y, seed:d.s, params:d.pa||null});
     (d.p||[]).forEach((pt,i)=>{ if(items[i]) items[i].points=pt; });
     return {name:d.n, grade:d.g, items, scale:d.sc, shuffle:!!d.sh};
   }
