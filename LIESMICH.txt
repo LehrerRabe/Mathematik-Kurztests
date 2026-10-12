@@ -1,0 +1,21 @@
+App-Symbol für Mathe-Kurztests
+==============================
+
+Alle Dateien aus diesem Ordner ins Repository hochladen
+(github.com/LehrerRabe/Mathematik-Kurztests -> Add file -> Upload files).
+
+  index.html              ERSETZT die vorhandene Datei
+  manifest.webmanifest    neu
+  icon.svg                neu
+  icon-192.png            neu
+  icon-512.png            neu
+  icon-maskable-512.png   neu  (randlos, fuer Androids Zuschnitt)
+  apple-touch-icon.png    neu  (180 px, ohne Transparenz)
+  icons.mjs               neu  (nur zum spaeteren Erzeugen anderer Motive)
+
+Die Datei LIESMICH.txt brauchst du nicht hochzuladen.
+
+Auf dem iPad danach: Seite in Safari oeffnen -> Teilen -> Zum Home-Bildschirm.
+
+Anderes Motiv erzeugen:  node icons.mjs stoppuhr
+Uebersicht aller Motive: node icons.mjs muster
